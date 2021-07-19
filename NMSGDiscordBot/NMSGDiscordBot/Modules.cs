@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
 using Discord;
 using Discord.WebSocket;
 using Discord.Commands;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace NMSGDiscordBot
 {
@@ -19,12 +23,7 @@ namespace NMSGDiscordBot
 	[Group("umamusume")]
     public class UmamusumeModule : ModuleBase<SocketCommandContext>
     {
-		// ~sample userinfo --> foxbot#0282
-		// ~sample userinfo @Khionu --> Khionu#8708
-		// ~sample userinfo Khionu#8708 --> Khionu#8708
-		// ~sample userinfo Khionu --> Khionu#8708
-		// ~sample userinfo 96642168176807936 --> Khionu#8708
-		// ~sample whois 96642168176807936 --> Khionu#8708
+
 		[Command("userinfo")]
 		[Summary
 		("Returns info about the current user, or the user parameter, if one passed.")]
@@ -36,5 +35,18 @@ namespace NMSGDiscordBot
 			var userInfo = user ?? Context.Client.CurrentUser;
 			await ReplyAsync($"{userInfo.Username}#{userInfo.Id}");
 		}
+
+		[Command("DerbyTest")]
+		[Summary("Make Test File of Derby data")]
+		public async Task DerbyTestAsync()
+        {
+			List<Derby> derbyList = new List<Derby>();
+			Derby testDerby = new Derby();
+			await testDerby.TestDerby();
+			await ReplyAsync("Test Derby Complete") ;
+        }
+
+		
+
 	}
 }
