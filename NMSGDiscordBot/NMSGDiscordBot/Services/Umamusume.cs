@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using Discord;
 
 namespace NMSGDiscordBot
@@ -11,28 +12,62 @@ namespace NMSGDiscordBot
         public string name;         // 우마무스메 이름
         public UInt64 ownerId;      // 오너 아이디 (디스코드 아이디)
 
-        public int speed;           // 속도 - 최고 속도
-        public int stamina;         // 최대 체력
-        public int power;           // 근력 - 가속력, 코스 잡기, 돌파력
-        public int toughness;       // 근성 - 종반 라스트 스퍼트, 달라붙기, 스태미너 보조
-        public int intelligence;    // 지능 - 지구력 관리, 스킬 사용 빈도, 디버프 회피
+        // 기본 스탯
+        public int speed;                   // 속도 - 최고 속도
+        public int stamina;                 // 최대 체력
+        public int power;                   // 근력 - 가속력, 코스 잡기, 돌파력
+        public int toughness;               // 근성 - 종반 라스트 스퍼트, 달라붙기, 스태미너 보조
+        public int intelligence;            // 지능 - 지구력 관리, 스킬 사용 빈도, 디버프 회피
 
-        private double currStamina;    // 더비용 현재 스테미나
-        private double currVelocity;   // 더비용 현재 속도
-        public double currLocation;    // 더비용 현재 위치
-        public double prevLocation;    // 더비용 이전 턴 위치
-        private Boolean isGoal;        // 더비용 현재 골 여부 확인
-        public double goalTiming;      // 더비용 골 타이밍 (골인한 경우 갱신)
+        // 각질 적성
+        public Aptitude runawayAptitude;    // 도주
+        public Aptitude frontAptitude;      // 선행
+        public Aptitude fiAptitude;         // 선출
+        public Aptitude stretchAptitude;    // 추입
 
-        private double maxVelocity;    // 최고 속도 (speed 영향 받음)
-        private double phase1boundary; // 체력 1차 바운더리
-        private double phase2boundary; // 체력 2차 바운더리
-        private double phase1slope;    // 체력 1차영역 최대속도 기울기 (최대 속도 대비 퍼센트)
-        private double phase2slope;    // 체력 2차영역 최대속도 기울기 (최대 속도 대비 퍼센트)
+        // 경기장 적성
+        public Aptitude grassAptitude;      // 잔디
+        public Aptitude durtAptitude;       // 더트
+
+        // 거리 적성
+        public Aptitude shortAptitude;      // 단거리 적성
+        public Aptitude mileAptitude;       // 마일 적성
+        public Aptitude middleAptitude;     // 중거리 적성
+        public Aptitude longAptitude;       // 장거리 적성
 
 
 
-        public Umamusume(string name, UInt64 ownerId, int speed, int stamina, int power, int toughness, int intelligence)
+        public Umamusume()
+        {
+            this.name = "테스트";
+            this.ownerId = 0;
+
+            this.speed = 1;
+            this.stamina = 1;
+            this.power = 1;
+            this.toughness = 1;
+            this.intelligence = 1;
+
+            this.runawayAptitude = Aptitude.A;
+            this.frontAptitude = Aptitude.A;
+            this.fiAptitude = Aptitude.A;
+            this.stretchAptitude = Aptitude.A;
+
+            this.grassAptitude = Aptitude.A;
+            this.durtAptitude = Aptitude.A;
+
+            this.shortAptitude = Aptitude.A;
+            this.mileAptitude = Aptitude.A;
+            this.middleAptitude = Aptitude.A;
+            this.longAptitude = Aptitude.A;
+
+        }
+
+        public Umamusume(string name, UInt64 ownerId,
+                        int speed, int stamina, int power, int toughness, int intelligence,
+                        Aptitude runawayAptitude, Aptitude frontAptitude, Aptitude fiAptitude, Aptitude stretchAptitude,
+                        Aptitude grassAptitude, Aptitude durtAptitude,
+                        Aptitude shortAptitude, Aptitude mileAptitude, Aptitude middleAptitude, Aptitude longAptitude)
         {
             this.name = name;
             this.ownerId = ownerId;
@@ -43,103 +78,49 @@ namespace NMSGDiscordBot
             this.toughness = toughness;
             this.intelligence = intelligence;
 
-            currStamina = stamina;
-            currVelocity = 0;
+            this.runawayAptitude = runawayAptitude;
+            this.frontAptitude = frontAptitude;
+            this.fiAptitude = fiAptitude;
+            this.stretchAptitude = stretchAptitude;
 
-            currLocation = 0;
-            prevLocation = 0;
+            this.grassAptitude = grassAptitude;
+            this.durtAptitude = durtAptitude;
 
-            isGoal = false;
-            goalTiming = -1;
-
-            maxVelocity = speed;
-            phase1boundary = 20;
-            phase2boundary = 70;
-            phase1slope = 90;
-            phase2slope = 60;
+            this.shortAptitude = shortAptitude;
+            this.mileAptitude = mileAptitude;
+            this.middleAptitude = middleAptitude;
+            this.longAptitude = longAptitude;
         }
 
-        public Boolean TurnProcess(int maxFurlong, List<CourseType> courseTypeList)
+
+        public override string ToString()
         {
-            Boolean result = false;
-            int currFurlong = (int)currLocation / 200;
-            int prevFurlong = -1;
-            CourseType currCourseType = courseTypeList[currFurlong];
-
-            if(currFurlong < maxFurlong - 1)
-            {
-                prevFurlong = currFurlong + 1;
-            }
-            prevLocation = currLocation;
-            maxVelocity = GetCurrMaxVelocity();
-
-            if(currVelocity < maxVelocity)
-            {
-                double accel = GetCurrAccel();
-                currVelocity = currVelocity + accel;
-                currStamina -= 5;
-            }
-            else
-            {
-                currStamina -= 1;
-            }
-            
-            if(currVelocity > maxVelocity)
-            {
-                currVelocity = maxVelocity;
-            }
-
-            currLocation = prevLocation + currVelocity;
-
-            if (currLocation > maxFurlong * 200 && !isGoal)
-            {
-                result = true;
-                isGoal = true;
-                goalTiming = GetGoalTiming(maxFurlong * 200);
-            }
-
-            return result;
+            return "Umamusume Name : " + name + " / owner ID : " + ownerId;
         }
-
-        private double GetCurrMaxVelocity()
-        {
-            double result = 0;
-            double x = currStamina / (double)stamina * 100;
-            double y = 0;
-
-            if(x <= phase1boundary)
-            {
-                y = 100 - (x * (100 - phase1slope)) / phase1boundary;
-            }
-            else if(x <= phase2boundary)
-            {
-                y = phase1slope - (x - phase1boundary) * (phase1slope - phase2slope) / (phase2boundary - phase1boundary);
-            }
-            else
-            {
-                y = phase2slope - (x - phase2boundary) * phase2slope / (100 - phase2boundary);
-            }
-
-            result = speed * (y / 100);
-            result = Math.Round(result, 2);
-            return result;
-        }
-
-        private double GetCurrAccel()
-        {
-            double result = 50;
-
-            return result;
-        }
-
-        public double GetGoalTiming(double length)
-        {
-            return (length - prevLocation) / (currLocation - prevLocation);    
-        }
-
 
 
     }
+
+    public enum RunningStyle
+    {
+        Runaway = 1,        // 도주
+        Front = 2,          // 선행  
+        FI = 3,             // 선출
+        Stretch = 4         // 추입
+    }
+
+    public enum Aptitude
+    {
+        S = 1,
+        A = 2,
+        B = 3,
+        C = 4,
+        D = 5,
+        E = 6,
+        F = 7,
+        G = 8
+    }
+
 
 
 }

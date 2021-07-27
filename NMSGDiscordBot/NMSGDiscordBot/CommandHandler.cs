@@ -21,7 +21,7 @@ namespace NMSGDiscordBot
             _client = client;
         }
 
-        public async Task InstallCommandsAsync()
+        public async Task InstallCommandsAsync(IServiceProvider services)
         {
             // Hook the MessageReceived event into our command handler
             _client.MessageReceived += HandleCommandAsync;
@@ -35,7 +35,7 @@ namespace NMSGDiscordBot
             // If you do not use Dependency Injection, pass null.
             // See Dependency Injection guide for more information.
             await _commands.AddModulesAsync(assembly: Assembly.GetEntryAssembly(),
-                                           services: null);
+                                           services: services);
         }
 
         private async Task HandleCommandAsync(SocketMessage messageParam)

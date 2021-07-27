@@ -41,7 +41,7 @@ namespace NMSGDiscordBot
         public async Task MainAsync()
         {
             // Centralize the logic for commands into a separate method.
-            await _commandHandler.InstallCommandsAsync();
+            await _commandHandler.InstallCommandsAsync(_services);
 
             // Login and connect.
             await _client.LoginAsync(TokenType.Bot,
