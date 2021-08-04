@@ -18,7 +18,7 @@ namespace NMSGDiscordBot
 
         public List<String> RaceManager()
         {
-            int furlong = derby.furlong;
+            int furlong = derby.courseLength;
             List<CourseType> courseTypeList = derby.courseTypeList;
             Turn turn = new Turn(entry, furlong, courseTypeList);
 

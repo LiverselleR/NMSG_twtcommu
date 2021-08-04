@@ -29,7 +29,7 @@ namespace NMSGDiscordBot
 
             foreach(Participant p in participants)
             {
-                p.TurnProcess();
+                p.TurnProcess(participants);
             }
 
             participants.Sort((p1, p2) => p1.CompareTo(p2));
@@ -44,10 +44,11 @@ namespace NMSGDiscordBot
             sb.Append("Turn " + currTurn + " : ");
             foreach(Participant p in participants)
             {
-                sb.Append(p.name + " - " + p.currLocation + " / ");
+                sb.Append(p.name + " - " + p.currPosition.X + " / ");
             }
             sb.Remove(sb.Length - 3, 2);
-            raceLog.Add(sb.ToString());
+            if(currTurn % 20 == 0)
+                raceLog.Add(sb.ToString());
             Console.WriteLine(sb.ToString());
             return;
         }
@@ -63,7 +64,7 @@ namespace NMSGDiscordBot
 
             foreach (Participant p in participants)
             {
-                result = result && (p.isGoal || p.isRetired);
+                result = result && (p.isGoal);
             }
 
             return !result;
