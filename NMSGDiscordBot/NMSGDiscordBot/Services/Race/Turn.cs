@@ -47,8 +47,7 @@ namespace NMSGDiscordBot
                 sb.Append(p.name + " - " + p.currPosition.X + " / ");
             }
             sb.Remove(sb.Length - 3, 2);
-            if(currTurn % 20 == 0)
-                raceLog.Add(sb.ToString());
+            raceLog.Add(sb.ToString());
             Console.WriteLine(sb.ToString());
             return;
         }

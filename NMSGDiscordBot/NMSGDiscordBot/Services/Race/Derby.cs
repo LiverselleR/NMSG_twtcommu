@@ -18,7 +18,7 @@ namespace NMSGDiscordBot
         public int courseLength;                             // 200미터 단위 pole 개수 
         public List<CourseType> courseTypeList;         // 200미터 단위로 코스의 휘어짐, 경사 정보
         public int numberParticipants;                  // 참가자 수
-        public DerbyStatusType statusType;              // 경기 주요 스테이터스
+        public StatusType statusType;              // 경기 주요 스테이터스
         public Racetrack racetrack;                     // 경기장 트랙 정보
         public int firstIndex;                          // racetrack 의 초반 시작 인덱스
         public int lastIndex;                           // racetrack 의 후반 시작 인덱스
@@ -33,7 +33,7 @@ namespace NMSGDiscordBot
             this.courseTypeList = new List<CourseType>();
             this.courseTypeList.Add(CourseType.straight);
             this.numberParticipants = 5;
-            this.statusType = DerbyStatusType.speed;
+            this.statusType = StatusType.speed;
 
             this.racetrack = new Racetrack();
             firstIndex = 3;
@@ -43,7 +43,7 @@ namespace NMSGDiscordBot
 
         }
 
-        public Derby(String derbyName, FieldType fieldType, int furlong, List<CourseType> courseTypeList, int numberParticipants, DerbyStatusType statusType)
+        public Derby(String derbyName, FieldType fieldType, int furlong, List<CourseType> courseTypeList, int numberParticipants, StatusType statusType)
         {
             this.derbyName = derbyName;
             this.fieldType = fieldType;
@@ -53,17 +53,19 @@ namespace NMSGDiscordBot
             this.statusType = statusType;
         }
 
-        public List<String> TestDerby()
+        public static List<String> TestDerby()
         {
             Derby test = new Derby();
-            List<Umamusume> entryList = new List<Umamusume>();
-            entryList.Add(new Umamusume());
-            entryList.Add(new Umamusume());
+            List<Umamusume> entryList = Umamusume.GetTestUList();
             List<Participant> entry = new List<Participant>();
-            foreach(Umamusume u in entryList)
-            {
-                entry.Add(new Participant(u, test, RunningStyle.Front, 5));
-            }
+
+            entry.Add(new Participant(entryList[0], test, RunningStyle.Stretch, 1));
+            entry.Add(new Participant(entryList[1], test, RunningStyle.Runaway, 2));
+            entry.Add(new Participant(entryList[2], test, RunningStyle.Runaway, 3));
+            entry.Add(new Participant(entryList[4], test, RunningStyle.Front, 5));
+            entry.Add(new Participant(entryList[6], test, RunningStyle.FI, 7));
+            entry.Add(new Participant(entryList[8], test, RunningStyle.Stretch, 9));
+
             Race r = new Race(test, entry);
             return r.RaceManager();
         }
@@ -107,7 +109,7 @@ namespace NMSGDiscordBot
         curve = 1,
         straight = 2
     }
-    public enum DerbyStatusType
+    public enum StatusType
     {
         speed = 1,
         stamina = 2, 

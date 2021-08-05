@@ -10,7 +10,7 @@ namespace NMSGDiscordBot
     public class Umamusume
     {
         public string name;         // 우마무스메 이름
-        public UInt64 ownerId;      // 오너 아이디 (디스코드 아이디)
+        public UInt64 ownerID;      // 오너 아이디 (디스코드 아이디)
 
         // 기본 스탯
         public int speed;                   // 속도 - 최고 속도
@@ -40,13 +40,13 @@ namespace NMSGDiscordBot
         public Umamusume()
         {
             this.name = "테스트";
-            this.ownerId = 0;
+            this.ownerID = 0;
 
-            this.speed = 1;
-            this.stamina = 1;
-            this.power = 1;
-            this.toughness = 1;
-            this.intelligence = 1;
+            this.speed = 600;
+            this.stamina = 600;
+            this.power = 600;
+            this.toughness = 600;
+            this.intelligence = 600;
 
             this.runawayAptitude = Aptitude.A;
             this.frontAptitude = Aptitude.A;
@@ -70,7 +70,7 @@ namespace NMSGDiscordBot
                         Aptitude shortAptitude, Aptitude mileAptitude, Aptitude middleAptitude, Aptitude longAptitude)
         {
             this.name = name;
-            this.ownerId = ownerId;
+            this.ownerID = ownerId;
 
             this.speed = speed;
             this.stamina = stamina;
@@ -95,9 +95,66 @@ namespace NMSGDiscordBot
 
         public override string ToString()
         {
-            return "Umamusume Name : " + name + " / owner ID : " + ownerId;
+            return "Umamusume Name : " + name + " / owner ID : " + ownerID;
         }
 
+        public static List<Umamusume> GetTestUList()
+        {
+            List<Umamusume> result = new List<Umamusume>();
+
+            result.Add(
+                new Umamusume("스탠다드 스테이트", 0, 1100, 1100, 1100, 600, 600,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.S,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("스탠다드 컨디션스", 0, 1100, 1100, 1100, 600, 600,
+                Aptitude.S, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("파란 천둥", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("의성 블랙갈릭", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("해운대 씨걸", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("보라매 레드", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("웨이브 서퍼", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("레인보우 민티", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("썬더 샤베트", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+            result.Add(
+                new Umamusume("후유마츠리", 0, 800, 800, 800, 300, 300,
+                Aptitude.C, Aptitude.C, Aptitude.C, Aptitude.C,
+                Aptitude.A, Aptitude.D,
+                Aptitude.C, Aptitude.C, Aptitude.A, Aptitude.B));
+
+            return result;
+        }
 
     }
 

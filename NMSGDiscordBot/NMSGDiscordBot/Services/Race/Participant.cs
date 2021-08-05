@@ -124,7 +124,7 @@ namespace NMSGDiscordBot
             isOutsideBlocked = false;
             isFever = false;
             isSpurt = false;
-            isStartAccel = false;
+            isStartAccel = true;
 
             surroundParticipants = new List<Participant>();
             
@@ -184,6 +184,8 @@ namespace NMSGDiscordBot
                     break;
             }
             UpdateTargetSpeed();
+            if (isStartAccel && targetSpeed <= currSpeed)
+                isStartAccel = false;
             return;
         }
 
@@ -214,13 +216,16 @@ namespace NMSGDiscordBot
                         }
                         break;
                     default:
-                        currPosition.X += (float)currSpeed / 20;
+                        currPosition.X += (float)currSpeed;
                         break;
 
                 }
             }
             else
                 currPosition.X += (float)currSpeed / 20;
+
+            currStamina -= GetStaminaExhaustionSpeed(derby.turfCondition);
+
             return;
         }
 
@@ -251,26 +256,26 @@ namespace NMSGDiscordBot
         }
 
         // 기본 속도 보정 - 더비에서 정해진 스탯 값에 따라 기본 보정
-        private double GetCalibratingSpeedValue(DerbyStatusType statusType, Umamusume u)
+        private double GetCalibratingSpeedValue(StatusType statusType, Umamusume u)
         {
             double result;
             int standard;
 
             switch (statusType)
             {
-                case DerbyStatusType.intelligence:
+                case StatusType.intelligence:
                     standard = u.intelligence;
                     break;
-                case DerbyStatusType.power:
+                case StatusType.power:
                     standard = u.power;
                     break;
-                case DerbyStatusType.speed:
+                case StatusType.speed:
                     standard = u.speed;
                     break;
-                case DerbyStatusType.stamina:
+                case StatusType.stamina:
                     standard = u.stamina;
                     break;
-                case DerbyStatusType.toughness:
+                case StatusType.toughness:
                     standard = u.toughness;
                     break;
                 default:

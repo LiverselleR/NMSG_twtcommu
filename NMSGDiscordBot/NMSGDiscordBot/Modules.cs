@@ -80,9 +80,7 @@ namespace NMSGDiscordBot
 		[Summary("Make Test File of Derby data")]
 		public async Task DerbyTestAsync()
         {
-			List<Derby> derbyList = new List<Derby>();
-			Derby testDerby = new Derby();
-			List<String> derbyCast = testDerby.TestDerby();
+			List<String> derbyCast = Derby.TestDerby();
 			foreach(String str in derbyCast)
             {
 				await ReplyAsync(str);

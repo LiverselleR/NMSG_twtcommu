@@ -13,11 +13,11 @@ namespace NMSGDiscordBot
         {
             int i = uList.FindIndex(x => x.name.Contains(uName));
             if (i == -1) throw new UmamusumeNameNotFoundException();
-            else if (uList.FindIndex(x => x.ownerId.CompareTo(discordID) == 0) != -1) throw new DiscordIdAlreadyRegisteredException();
+            else if (uList.FindIndex(x => x.ownerID.CompareTo(discordID) == 0) != -1) throw new DiscordIdAlreadyRegisteredException();
             else
             {
-                if (uList[i].ownerId != 0) throw new UmamusumeAlreadyRegisteredException();
-                uList[i].ownerId = discordID;
+                if (uList[i].ownerID != 0) throw new UmamusumeAlreadyRegisteredException();
+                uList[i].ownerID = discordID;
                 return;
             }
         }

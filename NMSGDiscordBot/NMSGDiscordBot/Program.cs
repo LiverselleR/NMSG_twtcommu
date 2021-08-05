@@ -50,6 +50,7 @@ namespace NMSGDiscordBot
 
             // Wait infinitely so your bot actually stays connected.
             await Task.Delay(Timeout.Infinite);
+            
         }
 
         private Task Log(LogMessage msg)
