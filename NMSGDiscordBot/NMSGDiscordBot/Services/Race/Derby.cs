@@ -13,90 +13,100 @@ namespace NMSGDiscordBot
 {
     public class Derby
     {
+        public int id; 
         public String derbyName;
-        public FieldType fieldType;
-        public int courseLength;                             // 200미터 단위 pole 개수 
-        public List<CourseType> courseTypeList;         // 200미터 단위로 코스의 휘어짐, 경사 정보
         public int numberParticipants;                  // 참가자 수
-        public StatusType statusType;              // 경기 주요 스테이터스
-        public Racetrack racetrack;                     // 경기장 트랙 정보
-        public int firstIndex;                          // racetrack 의 초반 시작 인덱스
-        public int lastIndex;                           // racetrack 의 후반 시작 인덱스
-        public int lastStraightIndex;                   // 최후직선 인덱스
+        public StatusType statusType;                   // 경기 주요 스테이터스
         public TurfCondition turfCondition;             // 마장 상태
 
         public Derby()
         {
-            this.derbyName = "TestDerby";
-            this.fieldType = FieldType.durt;
-            this.courseLength = 2200;
-            this.courseTypeList = new List<CourseType>();
-            this.courseTypeList.Add(CourseType.straight);
-            this.numberParticipants = 5;
+            id = -1;
+            this.derbyName = "테스트더비";
+            this.numberParticipants = 8;
             this.statusType = StatusType.speed;
-
-            this.racetrack = new Racetrack();
-            firstIndex = 3;
-            lastIndex = 2;
-            lastStraightIndex = 3;
             turfCondition = TurfCondition.normal;
 
         }
 
-        public Derby(String derbyName, FieldType fieldType, int furlong, List<CourseType> courseTypeList, int numberParticipants, StatusType statusType)
+        public Derby(int id, String derbyName, int numberParticipants, StatusType statusType)
         {
+            this.id = id;
             this.derbyName = derbyName;
-            this.fieldType = fieldType;
-            this.courseLength = furlong;
-            this.courseTypeList = courseTypeList;
             this.numberParticipants = numberParticipants;
             this.statusType = statusType;
+            turfCondition = TurfCondition.normal;
         }
 
-        public static List<String> TestDerby()
+        
+        public static List<RunningStyle> TestDerby_RunningStyle()
         {
             Derby test = new Derby();
+            Racetrack racetrack = JSONManager.GetRacetrackList()[0];
+
+            Console.WriteLine(racetrack.partLength.Count);
+            
             List<Umamusume> entryList = Umamusume.GetTestUList();
             List<Participant> entry = new List<Participant>();
 
-            entry.Add(new Participant(entryList[0], test, RunningStyle.Stretch, 1));
-            entry.Add(new Participant(entryList[1], test, RunningStyle.Runaway, 2));
-            entry.Add(new Participant(entryList[2], test, RunningStyle.Runaway, 3));
-            entry.Add(new Participant(entryList[4], test, RunningStyle.Front, 5));
-            entry.Add(new Participant(entryList[6], test, RunningStyle.FI, 7));
-            entry.Add(new Participant(entryList[8], test, RunningStyle.Stretch, 9));
+            entry.Add(new Participant(entryList[0], test, racetrack, RunningStyle.Runaway, 3));
+            entry.Add(new Participant(entryList[1], test, racetrack, RunningStyle.Runaway, 4));
+            entry.Add(new Participant(entryList[2], test, racetrack, RunningStyle.Front, 5));
+            entry.Add(new Participant(entryList[3], test, racetrack, RunningStyle.Front, 6));
+            entry.Add(new Participant(entryList[4], test, racetrack, RunningStyle.FI, 7));
+            entry.Add(new Participant(entryList[5], test, racetrack, RunningStyle.FI, 8));
+            entry.Add(new Participant(entryList[6], test, racetrack, RunningStyle.Stretch, 9));
+            entry.Add(new Participant(entryList[7], test, racetrack, RunningStyle.Stretch, 10));
 
             Race r = new Race(test, entry);
-            return r.RaceManager();
+            r.Proceed();
+            return r.turn.GetRunningStyles();
         }
+        public static List<String> TestDerby_Process()
+        {
+            Derby test = new Derby();
+            Racetrack racetrack = JSONManager.GetRacetrackList()[0];
+            List<Umamusume> entryList = Umamusume.GetTestUList();
+            List<Participant> entry = new List<Participant>();
 
+            entry.Add(new Participant(entryList[0], test, racetrack, RunningStyle.Runaway, 3));
+            entry.Add(new Participant(entryList[1], test, racetrack, RunningStyle.Runaway, 4));
+            entry.Add(new Participant(entryList[2], test, racetrack, RunningStyle.Front, 5));
+            entry.Add(new Participant(entryList[3], test, racetrack, RunningStyle.Front, 6));
+            entry.Add(new Participant(entryList[4], test, racetrack, RunningStyle.FI, 7));
+            entry.Add(new Participant(entryList[5], test, racetrack, RunningStyle.FI, 8));
+            entry.Add(new Participant(entryList[6], test, racetrack, RunningStyle.Stretch, 9));
+            entry.Add(new Participant(entryList[7], test, racetrack, RunningStyle.Stretch, 10));
+
+            Race r = new Race(test, entry);
+            r.Proceed();
+            return r.turn.GetDetailLog();
+        }
+    
         public CoursePhase GetCoursePhase(double currPosition)
         {
             /// 초반 : 스타트 후 직선 코스에서 경쟁
             /// 중반 : 후반 가기 전 컨디션 조절
             /// 후반 : 최후 코너 + 최후 직선
 
-            double leftLength = courseLength - currPosition; 
+            int prev = 0;
+            int curr = 0;
+            int currIndex;
 
-            if(courseLength < 1600)                     // 단거리
-            {
-                if (leftLength > courseLength - 400) return CoursePhase.First;
-                else if (leftLength > racetrack.straight - 50) return CoursePhase.Middle;
-                else return CoursePhase.Last;
-            }
-            else                                        // 마일, 중거리, 장거리
-            {
-                if (leftLength > courseLength + 50 - racetrack.GetTrackLength()) return CoursePhase.First;
-                else if (leftLength > racetrack.curveLeft + racetrack.straight - 50) return CoursePhase.Middle;
-                else return CoursePhase.Last;
-            }
-        }
+            List<Racetrack> racetracks = JSONManager.GetRacetrackList();
+            Racetrack racetrack = racetracks.Find(rt => rt.id == id);
 
-        public Boolean IsLastStraight(double currLocation)
-        {
-            double length = racetrack.partLength[lastStraightIndex] - 50;
-            if (currLocation >= courseLength - length) return true;
-            else return false;
+            for (currIndex = 0; currIndex < racetrack.partLength.Count; currIndex++)
+            {
+                prev = curr;
+                curr = curr + racetrack.partLength[currIndex];
+                if (currPosition >= prev && currPosition < curr)
+                    break;
+            }
+
+            if (currIndex == 0) return CoursePhase.First;
+            else if (currIndex < racetrack.partLength.Count - 2) return CoursePhase.Middle;
+            else return CoursePhase.Last;
         }
         
             

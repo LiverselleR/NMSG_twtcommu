@@ -11,16 +11,16 @@ namespace NMSGDiscordBot
     {
         public int currTurn;
         private List<Participant> participants;
-        private int furlong;
         private List<CourseType> courseTypeList;
         private List<String> raceLog;
-        public Turn(List<Participant> participants, int furlong, List<CourseType> courseTypeList)
+        private List<String> raceDetailLog;
+        public Turn(List<Participant> participants, List<CourseType> courseTypeList)
         {
             currTurn = 0;
             this.participants = participants;
-            this.furlong = furlong;
             this.courseTypeList = courseTypeList;
             raceLog = new List<string>();
+            raceDetailLog = new List<String>();
         }
 
         public void Process()
@@ -29,32 +29,67 @@ namespace NMSGDiscordBot
 
             foreach(Participant p in participants)
             {
-                p.TurnProcess(participants);
+                p.TurnProcess(participants, currTurn);
             }
 
             participants.Sort((p1, p2) => p1.CompareTo(p2));
 
             for(int i = 0; i < participants.Count(); i++)
             {
-                participants[i].RankRenewal(i+1);
+                participants[i].RankRenewal(i);
             }
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sbInfo = new StringBuilder();
+            StringBuilder sbDetail = new StringBuilder();
 
-            sb.Append("Turn " + currTurn + " : ");
+            sbInfo.Append("◎Turn " + currTurn + "\n");
+            sbDetail.Append("◎Turn " + currTurn + "\n");
             foreach(Participant p in participants)
             {
-                sb.Append(p.name + " - " + p.currPosition.X + " / ");
+                sbDetail.Append(p.ToString() + "\n");
+                sbInfo.Append(p.ToInfoString() + "\n");
+
+                sbDetail.Replace('_', ' ');
+                sbInfo.Replace('_', ' ');
             }
-            sb.Remove(sb.Length - 3, 2);
-            raceLog.Add(sb.ToString());
-            Console.WriteLine(sb.ToString());
+            if (currTurn%20 == 0)
+            {
+                raceLog.Add(sbInfo.ToString());
+                raceDetailLog.Add(sbDetail.ToString());
+                Console.WriteLine(sbDetail.ToString());
+            }
             return;
         }
 
         public List<String> GetLog()
         {
             return raceLog;
+        }
+        public List<String> GetDetailLog()
+        {
+            return raceDetailLog;
+        }
+
+        public List<RunningStyle> GetRunningStyles()
+        {
+            List<RunningStyle> result = new List<RunningStyle>();
+
+            foreach (Participant p in participants)
+                result.Add(p.runningStyle);
+            return result;
+        }
+
+        public String GetResultRank()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append("■ 최종 순위\n");
+            for (int i = 0; i < participants.Count; i++)
+            {
+                sb.Append("▷ " + (i + 1) + "위 : " + participants[i].name + "\n");
+            }
+            sb.Replace('_', ' ');
+            return sb.ToString();
         }
 
         public Boolean IsRaceOver()

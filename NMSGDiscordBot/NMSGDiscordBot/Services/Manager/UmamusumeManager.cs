@@ -27,9 +27,11 @@ namespace NMSGDiscordBot
 
         }
 
-        public void Lookup()
+        public static Boolean Lookup(UInt64 discordID, List<Umamusume> uList)
         {
-
+            int i = uList.FindIndex(u => u.ownerID == discordID);
+            if (i == -1) return false;
+            else return true;
         }
 
         

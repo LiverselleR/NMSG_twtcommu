@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Windows;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Numerics;
@@ -48,23 +49,23 @@ namespace NMSGDiscordBot
         private ForceInMove forceInMove;                // 포지션 무브 상태 (다른 코스로 전환하면서 달림)
 
         private Boolean isBlocked;                      // 블록당함 여부
-        private Boolean isSurrounded;                   // 포위당함 여부
-        private Boolean isFrontBlocked;                 // 정면 블록 여부
-        private Boolean isInsideBlocked;                // 인-라인 블록 여부
-        private Boolean isOutsideBlocked;               // 아웃-라인 블록 여부
+        private int[,] surroundCheck;                   // 포위 여부 확인을 위한 카운터
+        private readonly (int, int)[] eyesight          // 시야 단계별 범위
+            = { (1, 3), (3, 3), (4, 3), (5, 3), (5, 5), (6, 5), (7, 5) };
+        private int eyesightLevel;
+
         private Boolean isFever;                        // 흥분 여부
         private Boolean isSpurt;                        // 스퍼트 여부
         private Boolean isStartAccel;                   // 출발 스퍼트 가속 여부
-
-        private List<Participant> surroundParticipants; // 주변 둘러싼 우마무스메들 정보 (마군에 끼어 있을 경우에만)
-
-        private double maxStamina;                      // 더비용 최대 스테미나
-        private double currStamina;                     // 더비용 현재 스테미나
+       
+        public double maxStamina;                      // 더비용 최대 스테미나
+        public double currStamina;                     // 더비용 현재 스테미나
         public double currSpeed;                        // 더비용 현재 속도
-        private double currAccel;                       // 더비용 현재 가속도 
+        public double currAccel;                       // 더비용 현재 가속도 
 
         public Participant(Umamusume u,
                            Derby d,
+                           Racetrack r,
                            RunningStyle runningStyle,
                            float currPosition)
         {
@@ -72,7 +73,7 @@ namespace NMSGDiscordBot
             this.runningStyle = runningStyle;
 
             derby = d;
-            racetrack = d.racetrack;
+            racetrack = r;
 
             rank = 0;
             prevRank = 0;
@@ -118,21 +119,19 @@ namespace NMSGDiscordBot
             forceInMove = ForceInMove.non;
 
             isBlocked = false;
-            isSurrounded = false;
-            isFrontBlocked = false;
-            isInsideBlocked = false;
-            isOutsideBlocked = false;
+            SetEyesightLevel();
+
             isFever = false;
             isSpurt = false;
             isStartAccel = true;
 
-            surroundParticipants = new List<Participant>();
             
             // 최대 스태미너 초기화
             maxStamina = GetMaximumStamina();
-            currStamina = u.stamina;
+            currStamina = maxStamina;
             currSpeed = 0;
             currAccel = 0;
+
 
         }
 
@@ -152,39 +151,43 @@ namespace NMSGDiscordBot
                 throw new ArgumentException("Object is not Participant");
         }
 
-        public void TurnProcess(List<Participant> pList)
+        public void TurnProcess(List<Participant> pList, int currTurn)
         {
             if (isGoal) return;
-            TurnActionDecide(pList);
+            TurnActionDecide(pList, currTurn);
             TurnActionActivate();
             if (TurnSpecialSituationCheck(pList))
                 TurnSpecialSituationProcess(pList);
             return;
         }
-        public void TurnActionDecide(List<Participant> pList)
+        public void TurnActionDecide(List<Participant> pList, int currTurn)
         {
             coursePhase = derby.GetCoursePhase(currPosition.X);
 
             CheckNear(pList);
-            switch(runningStyle)
+
+            if(!isFever)
             {
-                case RunningStyle.Runaway:
-                    ActionDecideRunaway(pList);
-                    break;
-                case RunningStyle.Front:
-                    ActionDecideFront(pList);
-                    break;
-                case RunningStyle.FI:
-                    ActionDecideFI(pList);
-                    break;
-                case RunningStyle.Stretch:
-                    ActionDecideStretch(pList);
-                    break;
-                default:
-                    break;
+                switch(derby.GetCoursePhase(currPosition.X))
+                {
+                    case CoursePhase.First:
+                        FirstPhaseActionDecide(pList);
+                        break;
+                    case CoursePhase.Middle:
+                        MiddlePhaseActionDecide(pList);
+                        break;
+                    case CoursePhase.Last:
+                        LastPhaseActionDecide(pList);
+                        break;
+                    default:
+                        NormalRun();
+                        break;
+
+                }
             }
+            
             UpdateTargetSpeed();
-            if (isStartAccel && targetSpeed <= currSpeed)
+            if (isStartAccel && ( targetSpeed <= currSpeed || currTurn >= 20))
                 isStartAccel = false;
             return;
         }
@@ -195,6 +198,8 @@ namespace NMSGDiscordBot
             currSpeed += currAccel / 20;
             prevPosition = currPosition;
 
+            double currSpeedPerTurn = currSpeed / 20;
+            
             if (isForceInMove)
             {
                 switch (forceInMove)
@@ -203,28 +208,32 @@ namespace NMSGDiscordBot
                     case ForceInMove.InsideOvertaking:
                     case ForceInMove.InsideMove:
                         {
-                            currPosition.X += (float)currSpeed / 20;
-                            currPosition.Y -= 0.1f;
+                            currSpeedPerTurn = Math.Sqrt(Math.Pow(currSpeedPerTurn, 2) - 0.0025f);
+                            currPosition.Y -= 0.05f;
                         }
                         break;
                     case ForceInMove.OutsideOvertaking:
                     case ForceInMove.OutsideMove:
                     case ForceInMove.OutsideCatchUp:
                         {
-                            currPosition.X += (float)currSpeed / 20;
-                            currPosition.Y += 0.1f;
+                            currSpeedPerTurn = Math.Sqrt(Math.Pow(currSpeedPerTurn, 2) - 0.0025f);
+                            currPosition.Y += 0.05f;
                         }
                         break;
                     default:
-                        currPosition.X += (float)currSpeed;
                         break;
-
                 }
             }
-            else
-                currPosition.X += (float)currSpeed / 20;
 
-            currStamina -= GetStaminaExhaustionSpeed(derby.turfCondition);
+
+            CourseType courseType = racetrack.GetCourseType(currPosition.X);
+            if (courseType == CourseType.curve)
+                currSpeedPerTurn = racetrack.GetCurveMoveLength(currSpeedPerTurn, currPosition.Y);
+
+            currPosition.X += (float) currSpeedPerTurn;
+
+            if (currStamina > 0) 
+                currStamina -= GetStaminaExhaustionSpeed(derby.turfCondition);
 
             return;
         }
@@ -241,10 +250,10 @@ namespace NMSGDiscordBot
         public void GoalCheck()
         {
             if (isGoal) return;
-            else if(currPosition.X >= derby.courseLength)
+            else if(currPosition.X >= racetrack.GetTrackLength())
             {
                 isGoal = true;
-                goalTiming = (derby.courseLength - prevPosition.X) / (currPosition.X - prevPosition.X);
+                goalTiming = (racetrack.GetTrackLength() - prevPosition.X) / (currPosition.X - prevPosition.X);
             }
         }
 
@@ -377,27 +386,62 @@ namespace NMSGDiscordBot
             }
         }
 
+        // 기본 시야 단계
+        public void SetEyesightLevel()
+        {
+            int quotient = (int)calibratedIntelligence / 150;
+            if (isFever) quotient = 0;
+            switch (quotient)
+            {
+                case 0:
+                    eyesightLevel = 1;
+                    break;
+                case 1:
+                    eyesightLevel = 2;
+                    break;
+                case 2:
+                    eyesightLevel = 3;
+                    break;
+                case 3:
+                    eyesightLevel = 4;
+                    break;
+                case 4:
+                case 5:
+                    eyesightLevel = 5;
+                    break;
+                case 6:
+                case 7:
+                    eyesightLevel = 6;
+                    break;
+                default:
+                    eyesightLevel = 0;
+                    break;
 
+            }
+            surroundCheck = new int[eyesight[eyesightLevel].Item1 + 1, eyesight[eyesightLevel].Item2];
+
+            return;
+        }
 
         // 기본 목표 속도 계산
         private double GetDefaultTargetSpeed()
         {
-            return (Math.Sqrt(500 * calibratedSpeed)) * lengthAptitudeSpeedValue * 0.002 + GetRaceReferenceSpeed()
-                * (GetRunningStyleCalibratingValue() + GetIntelligenceRandomCalibratingValue());
+            return (Math.Sqrt(500 * calibratedSpeed)) * lengthAptitudeSpeedValue * 0.002
+                + GetRaceReferenceSpeed() * (GetRunningStyleCalibratingValue() + GetIntelligenceRandomCalibratingValue());
         }
         /// 레이스 타입 확인
         private Aptitude GetLengthAptitude(Umamusume u)
         {
             Aptitude aptitude;
-            if (derby.courseLength < 1600)
+            if (racetrack.GetTrackLength() < 1600)
             {
                 aptitude = u.shortAptitude;
             }
-            else if (derby.courseLength < 2000)
+            else if (racetrack.GetTrackLength() < 2000)
             {
                 aptitude = u.mileAptitude;
             }
-            else if (derby.courseLength <= 2400)
+            else if (racetrack.GetTrackLength() <= 2400)
             {
                 aptitude = u.middleAptitude;
             }
@@ -462,7 +506,7 @@ namespace NMSGDiscordBot
         {
             double result = 20;
 
-            result += (2000 - derby.courseLength) / 100;
+            result = result + (double) (2000 - racetrack.GetTrackLength()) / 1000;
 
             return result;
         }
@@ -517,9 +561,9 @@ namespace NMSGDiscordBot
         private double GetIntelligenceRandomCalibratingValue()
         {
             Random random = new Random();
-            double maximum = (calibratedIntelligence / 5500) * Math.Log(calibratedIntelligence * 0.1);
-            double minimum = maximum - 0.65;
-            return minimum + random.NextDouble() * 0.65;
+            double maximum = ((double) calibratedIntelligence / 5500) * Math.Log(calibratedIntelligence * 0.1) * 0.01;
+            double minimum = maximum - 0.0065;
+            return minimum + random.NextDouble() * 0.0065;
         }
 
         // 일반 목표 속도 계산
@@ -533,9 +577,9 @@ namespace NMSGDiscordBot
                         return defaultTargetSpeed * 1.04;
                     case PositionKeep.Overtaking:
                         return defaultTargetSpeed * 1.05;
-                    case PositionKeep.FaceDown:
+                    case PositionKeep.paceDown:
                         return defaultTargetSpeed * 0.915;
-                    case PositionKeep.FaceUp:
+                    case PositionKeep.paceUp:
                         return defaultTargetSpeed * 1.04;
                     default:
                         return defaultTargetSpeed;
@@ -586,30 +630,33 @@ namespace NMSGDiscordBot
             Random rand = new Random();
             return (0.988 + rand.NextDouble() * 0.012) * p.currSpeed;
         }
+
+
         // 현재 타겟 속도 계산
         private void UpdateTargetSpeed()
         {
             defaultTargetSpeed = GetDefaultTargetSpeed();
             normalTargetSpeed = GetNormalTargetSpeed();
-            if(!isSpurt)
+            if(isSpurt)
                 spurtTargetSpeed = GetSpurtTargetSpeed();
             // maximumTargetSpeed : CheckNear 에서 확인
             if (currStamina <= 0)
                 targetSpeed = minimumTargetSpeed;
             else if (isSpurt)
                 targetSpeed = spurtTargetSpeed;
-            else if (spurtTargetSpeed > normalTargetSpeed)
-                targetSpeed = spurtTargetSpeed;
-            else if (spurtTargetSpeed < normalTargetSpeed)
+            else
             {
                 if (normalTargetSpeed > maximumTargetSpeed && !isForceInMove && !isPositionKeep)
                     targetSpeed = maximumTargetSpeed;
                 else
                     targetSpeed = normalTargetSpeed;
             }
+            if (targetSpeed < minimumTargetSpeed)
+                targetSpeed = minimumTargetSpeed;
                 
             
         }
+
 
         // 가속도 계산
         private double GetAccel()
@@ -617,7 +664,7 @@ namespace NMSGDiscordBot
             double result;
 
             if (currSpeed > targetSpeed)
-                result = GetDeceleration();
+                result = GetDeceleration() * -1;
             else if (currSpeed < targetSpeed)
             {
                 result = GetRunningStyleAccelCalibrateValue() * 0.0006 * Math.Sqrt(500 * calibratedPower) * fieldTypeAccelCalibrateValue;
@@ -723,7 +770,7 @@ namespace NMSGDiscordBot
         // 최대 체력 계산
         private double GetMaximumStamina()
         {
-            return derby.courseLength + 0.8 * GetRunningStyleStaminaCalibrateValue() * calibratedStamina;
+            return racetrack.GetTrackLength() + 0.8 * GetRunningStyleStaminaCalibrateValue() * calibratedStamina;
         }
         // 각질 체력 보정
         private double GetRunningStyleStaminaCalibrateValue()
@@ -754,7 +801,7 @@ namespace NMSGDiscordBot
         private double GetUmamusumeStatusCalibrateValue()
         {
             if (isFever) return 1.6;
-            else if (isPositionKeep || positionKeep == PositionKeep.FaceDown) return 0.6;
+            else if (isPositionKeep || positionKeep == PositionKeep.paceDown) return 0.6;
             else return 1;
         }
         // 마장 상태 체력 보정
@@ -793,877 +840,177 @@ namespace NMSGDiscordBot
 
         private void CheckNear(List<Participant> pList)
         {
-            int frontBlockCount = 0;
-            int backwardBlockCount = 0;
+            surroundCheck = new int[eyesight[eyesightLevel].Item1, eyesight[eyesightLevel].Item2];
+            SetEyesightLevel();
 
-            isBlocked = false;
-            isSurrounded = false;
-            isFrontBlocked = false;
-            isInsideBlocked = false;
-            isOutsideBlocked = false;
-            maximumTargetSpeed = 30;
-
-            if (currPosition.Y < 0.5) isInsideBlocked = true;
-
-            for(int i = rank - 1; i > 0; i--)
+            int startX = 0;
+            int startY = eyesight[eyesightLevel].Item2 / 2;
+            int endX = eyesight[eyesightLevel].Item1 + 1;
+            int endY = eyesight[eyesightLevel].Item2;
+            
+            if(currPosition.Y <= 0.5)
             {
-                if (pList[i].isGoal) continue;
-
-                Vector2 v = pList[i].currPosition - currPosition;
-                if(v.Length() < 1)
+                for(int i = 0; i < endX; i++)
                 {
-                    if(!isBlocked)
-                    {
-                        isBlocked = true;
-                        maximumTargetSpeed = GetMaximumTargetSpeed(pList[i]);
-                    }
-                    if (v.Y < 0.5)
-                        isInsideBlocked = true;
-                    else if (v.Y > -0.5)
-                        isOutsideBlocked = true;
-                    else
-                        isFrontBlocked = true;
-
-                    frontBlockCount++;
-                    surroundParticipants.Add(pList[i]);
+                    surroundCheck[i, 0]++;
+                }
+            }
+            else if(currPosition.Y >= racetrack.width - 0.5)
+            {
+                for (int i = 0; i < endX; i++)
+                {
+                    surroundCheck[i, endY - 1]++;
                 }
             }
 
-            for (int i = rank + 1; i < pList.Count; i++)
+            for (int i = rank - 1; i > 0; i--)
             {
-                Vector2 v = pList[i].currPosition - currPosition;
-                if (v.Length() < 1) backwardBlockCount++;
-                surroundParticipants.Add(pList[i]);
-            }
+                if (pList[i].isGoal) continue;
 
-            if ((frontBlockCount >= 3 && backwardBlockCount >= 3)
-                || (currPosition.Y <= 1 && frontBlockCount >= 2 && backwardBlockCount >= 2))
-                isSurrounded = true;
-            else surroundParticipants.Clear();
+                isBlocked = false;
+                int x = 0;
+                int y = 0;
+                double diffX = pList[i].currPosition.X - currPosition.X;
+                double diffY = pList[i].currPosition.Y - currPosition.Y;
+                for(y = 0; y < endY; y++ )                
+                    if (diffY >= -0.25 + (y - startY) * 0.5 && diffY < 0.25 + (y - startY) * 0.5)
+                        break;
+                for (x = 0; x < endX; x++)
+                    if (diffX >= -0.25 + (x - startX) * 0.5 && diffX < 0.25 + (x - startX) * 0.5)
+                        break;
+                if (y == endY || x == endX) continue;
+                else
+                {
+                    surroundCheck[x, y]++;
+                    if(y == startY && (x == startX || x == startX + 1) && !isBlocked)
+                    {
+                        isBlocked = true;
+                        GetMaximumTargetSpeed(pList[i]);
+                    }
+                }
+            }
+            if (!isBlocked) maximumTargetSpeed = 30;
 
             return;
         }
-        private void ActionDecideRunaway(List<Participant> pList)
-        {
-            switch (coursePhase)
-            {
-                case CoursePhase.First:
-                    if (rank < pList.Count - 1)
-                    {
-                        if (rank > 0)
-                        {
-                            if (isBlocked)
-                            {
-                                if (!isInsideBlocked)
-                                {
-                                    isPositionKeep = false;
-                                    isForceInMove = true;
-                                    positionKeep = PositionKeep.non;
-                                    forceInMove = ForceInMove.InsideOvertaking;
-                                }
-                                else if (!isFrontBlocked)
-                                {
-                                    isPositionKeep = true;
-                                    isForceInMove = false;
-                                    positionKeep = PositionKeep.Overtaking;
-                                    forceInMove = ForceInMove.non;
-                                }
-                                else
-                                {
-                                    isPositionKeep = false;
-                                    isForceInMove = true;
-                                    positionKeep = PositionKeep.non;
-                                    forceInMove = ForceInMove.OutsideOvertaking;
-                                }
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (pList[rank + 1].runningStyle == RunningStyle.Runaway
-                            || (pList[rank + 1].runningStyle != RunningStyle.Runaway && currPosition.X - pList[rank + 1].currPosition.X < 10))
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.SpeedUp;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else // pList[rank + 1].runningStyle != RunningStyle.Runaway && currPosition.X - pList[rank + 1].currPosition.X >= 10
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.SpeedUp;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    break;
-                default:
-                    if (!isInsideBlocked)
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = true;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.InsideMove;
-                    }
-                    else
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    break;
-            }
-        }
-        private void ActionDecideFront(List<Participant> pList)
-        {
-            switch (coursePhase)
-            {
-                case CoursePhase.First:
-                    if (rank > 0)
-                    {
-                        if (pList[rank - 1].runningStyle == RunningStyle.Runaway && pList[rank - 1].currPosition.X - currPosition.X < 3)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceDown;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.Runaway && pList[rank - 1].currPosition.X - currPosition.X > 6)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceUp;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.Runaway)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (isBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideOvertaking;
-                        }
-                        else
-                        {
-                            if (isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    else 
-                    {   
-                        if (pList[rank + 1].runningStyle == RunningStyle.Front)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    break;
-                case CoursePhase.Middle:
-                    if (rank > 0)
-                    {
-                        if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideMove;
-                        }
-                        else if (isBlocked && pList[rank - 1].runningStyle != RunningStyle.Runaway)
-                        {
-                            if (!isFrontBlocked)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else if (!isOutsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.OutsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceDown;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (pList[rank - 1].runningStyle != RunningStyle.Runaway)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideOvertaking;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else if (pList[rank - 1].runningStyle == RunningStyle.Runaway && pList[rank - 1].currPosition.X - currPosition.X < 3)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceDown;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else if (pList[rank - 1].runningStyle == RunningStyle.Runaway && pList[rank - 1].currPosition.X - currPosition.X > 5)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceUp;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    else 
-                    {
-                        if (!isInsideBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.InsideMove;
-                        }
-                        else if (currPosition.X - pList[rank + 1].currPosition.X > 3)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceDown;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                    }
-                    break;
-                case CoursePhase.Last:
-                    if (derby.IsLastStraight(currPosition.X))
-                    {
-                        if(isBlocked)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideOvertaking;
-                            }
-                            else if(!isFrontBlocked)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.OutsideOvertaking;
-                            }
-                        }
-                        else
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                    }
-                    else
-                    {
-                        isPositionKeep = true;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.SpeedUp;
-                        forceInMove = ForceInMove.non;
-                    }
-                    break;
-                default:
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    return;
-            }
-        }
-        private void ActionDecideFI(List<Participant> pList)
-        {
-            switch (coursePhase)
-            {
-                case CoursePhase.First:
-                    if (rank > 0)
-                    {
-                        if (pList[rank - 1].runningStyle == RunningStyle.Front && pList[rank - 1].currPosition.X - currPosition.X < 3)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceDown;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.Front && pList[rank - 1].currPosition.X - currPosition.X > 6)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceUp;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.Front)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (isBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideOvertaking;
-                        }
-                        else
-                        {
-                            if (isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (pList[rank + 1].runningStyle == RunningStyle.FI)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    break;
-                case CoursePhase.Middle:
-                    if (rank > 0)
-                    {
-                        if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideMove;
-                        }
-                        else if (isBlocked && pList[rank - 1].runningStyle != RunningStyle.Front)
-                        {
-                            if (!isFrontBlocked)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else if (!isOutsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.OutsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceDown;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (pList[rank - 1].runningStyle != RunningStyle.Front)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideOvertaking;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else if (pList[rank - 1].runningStyle == RunningStyle.Front && pList[rank - 1].currPosition.X - currPosition.X < 3)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceDown;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else if (pList[rank - 1].runningStyle == RunningStyle.Front && pList[rank - 1].currPosition.X - currPosition.X > 5)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceUp;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (!isInsideBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.InsideMove;
-                        }
-                        else if (currPosition.X - pList[rank + 1].currPosition.X > 3)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceDown;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                    }
-                    break;
-                case CoursePhase.Last:
-                    if (isBlocked)
-                    {
-                        if (!isInsideBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.InsideOvertaking;
-                        }
-                        else if (!isFrontBlocked)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.Overtaking;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideOvertaking;
-                        }
-                    }
-                    else
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    break;
-                default:
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    return;
-            }
-        }
-        private void ActionDecideStretch(List<Participant> pList)
-        {
-            switch (coursePhase)
-            {
-                case CoursePhase.First:
-                    if (rank > 0)
-                    {
-                        if (pList[rank - 1].runningStyle == RunningStyle.FI && pList[rank - 1].currPosition.X - currPosition.X < 3)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceDown;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.FI && pList[rank - 1].currPosition.X - currPosition.X > 6)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceUp;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (pList[rank - 1].runningStyle == RunningStyle.FI)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else if (isBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideOvertaking;
-                        }
-                        else
-                        {
-                            if (isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (pList[rank + 1].runningStyle == RunningStyle.FI)
-                        {
-                            if (!isInsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.InsideMove;
-                            }
-                            else
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                    }
-                    break;
-                case CoursePhase.Middle:
-                    if (rank > 0)
-                    {
-                        if (isSurrounded)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideMove;
-                        }
-                        else if (isBlocked)
-                        {
-                            if (!isFrontBlocked)
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.Overtaking;
-                                forceInMove = ForceInMove.non;
-                            }
-                            else if (!isOutsideBlocked)
-                            {
-                                isPositionKeep = false;
-                                isForceInMove = true;
-                                positionKeep = PositionKeep.non;
-                                forceInMove = ForceInMove.OutsideOvertaking;
-                            }
-                            else
-                            {
-                                isPositionKeep = true;
-                                isForceInMove = false;
-                                positionKeep = PositionKeep.FaceDown;
-                                forceInMove = ForceInMove.non;
-                            }
-                        }
-                        else if (Math.Abs(pList[rank - 1].currPosition.Y - currPosition.Y) < 0.5)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideMove;
-                        }
-                        else if(currPosition.Y > 3)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.InsideMove;
-                        }
-                        else
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.FaceUp;
-                            forceInMove = ForceInMove.non;
-                        }
-                    }
-                    else
-                    {
-                        isPositionKeep = true;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.FaceUp;
-                        forceInMove = ForceInMove.non;
-                    }
-                    break;
-                case CoursePhase.Last:
-                    if (isBlocked)
-                    {
-                        if (!isInsideBlocked)
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.InsideOvertaking;
-                        }
-                        else if (!isFrontBlocked)
-                        {
-                            isPositionKeep = true;
-                            isForceInMove = false;
-                            positionKeep = PositionKeep.Overtaking;
-                            forceInMove = ForceInMove.non;
-                        }
-                        else
-                        {
-                            isPositionKeep = false;
-                            isForceInMove = true;
-                            positionKeep = PositionKeep.non;
-                            forceInMove = ForceInMove.OutsideOvertaking;
-                        }
-                    }
-                    else
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    break;
-                default:
-                    {
-                        isPositionKeep = false;
-                        isForceInMove = false;
-                        positionKeep = PositionKeep.non;
-                        forceInMove = ForceInMove.non;
-                    }
-                    return;
-            }
-        }
 
+        private void FirstPhaseActionDecide(List<Participant> pList)
+        {
+            /*
+            if (runningStyle == RunningStyle.Runaway)
+            {
+                isSpurt = true;
+                SpeedUp();
+            }
+            else
+            {
+                if (rank == 0)
+                    NormalRun();
+                else if (pList[rank - 1].runningStyle == runningStyle)
+                    NormalRun();
+                else
+                {
+                    switch(runningStyle)
+                    {
+                        case RunningStyle.Front:
+                            if (pList[rank - 1].runningStyle == RunningStyle.Runaway)
+                                PaceDown();
+                            else
+                                PaceUp();
+                            break;
+                        case RunningStyle.FI:
+                            if (pList[rank - 1].runningStyle == RunningStyle.Stretch)
+                                PaceUp();
+                            else
+                                PaceDown();
+                            break;
+                        case RunningStyle.Stretch:
+                            PaceDown();
+                            break;
+                        default:
+                            NormalRun();
+                            break;
+                    }
+                }
+            }
+            */
+
+            NormalRun();
+
+            return;
+        }
+        private void MiddlePhaseActionDecide(List<Participant> pList)
+        {
+            isSpurt = false;
+
+            if (runningStyle == RunningStyle.Runaway)
+                NormalRun();
+            else if (rank == 0)
+                PaceAdjust();
+            else if (pList[rank - 1].runningStyle == runningStyle)
+                Overtake();
+            else if (runningStyle == RunningStyle.Stretch)
+                PaceUp();
+            else
+                PaceAdjust();
+        }
+        private void LastPhaseActionDecide(List<Participant> pList)
+        {
+            double spurtLength;
+
+            switch (runningStyle)
+            {
+                case RunningStyle.Stretch:
+                    spurtLength = racetrack.GetLastLength();
+                    break;
+                case RunningStyle.FI:
+                    spurtLength = racetrack.GetLastCurve();
+                    break;
+                case RunningStyle.Front:
+                    spurtLength = racetrack.GetLastStraight();
+                    break;
+                default:
+                    spurtLength = racetrack.GetLastSpurt();
+                    break;
+            }
+
+            if (spurtLength < GetSpurtLength() 
+                && currPosition.X > racetrack.GetTrackLength() - spurtLength)
+                isSpurt = true;
+            if (currStamina <= 0)
+                isSpurt = false;
+
+            Overtake();
+
+            return;
+            
+        }
 
         private double GetSpurtTargetSpeed()
         {
             double max = GetMaximumSpurtTargetSpeed();
-            double triangle = derby.courseLength - currPosition.X;
-            double square = GetRaceReferenceSpeed() - 12;
-            double filledSquare = currStamina
-                / (GetUmamusumeStatusCalibrateValue() * GetTurfConditionStaminaCalibrateValue(derby.turfCondition) * (1 + 200 / Math.Sqrt(600 * calibratedToughness)))
-                * 144 / 20;
-            if (Math.Pow(filledSquare + 2 * triangle * square, 2) - 4 * Math.Pow(2 * triangle * square, 2) < 0) return -1;
-            double tempSpeed = (-filledSquare + Math.Sqrt(Math.Pow(filledSquare + 2 * triangle * square, 2) - 4 * Math.Pow(2 * triangle * square, 2)))
-                / (2 * (derby.courseLength - currPosition.X));
-            if (max < tempSpeed) return max;
-            else return tempSpeed;
+            if (derby.GetCoursePhase(currPosition.X) == CoursePhase.First) return max;
+            else return max;
         }
+
         public override string ToString()
         {
-            return name + " - currSpeed : " + currSpeed + " , currPosition : " + currPosition + " , maxStamina : " + maxStamina + " , currStamina : " + currStamina;
+            return (rank + 1).ToString().PadLeft(2) + " : " + name.PadLeft(15, ' ')
+                + " - targetSpeed : " + targetSpeed.ToString("F")
+                + " / defaultTarget : " + defaultTargetSpeed.ToString("F")
+                + " / spurtTarget : " + spurtTargetSpeed.ToString("F")
+                + " / currPosition : " + currPosition.ToString("F")
+                + " / Stamina : " + (currStamina * 100 / maxStamina).ToString("F")
+                + "% / Phase : " + derby.GetCoursePhase(currPosition.X).ToString()
+                + " / PositionKeep : " + positionKeep.ToString()
+                + " / ForceInMove : " + forceInMove.ToString()
+                + " / isSpurt : " + isSpurt;
+        }
+        public string ToInfoString()
+        {
+            return rank.ToString().PadLeft(2) + " : " + name.PadLeft(15, ' ')
+                + " - " + currPosition.X.ToString("F") + "m / 남은 체력 : "
+                + ((currStamina / maxStamina) * 100).ToString("F") + "%";
         }
 
 
@@ -1674,8 +1021,8 @@ namespace NMSGDiscordBot
         non = 0,
         SpeedUp = 1,
         Overtaking = 2,
-        FaceDown = 3,
-        FaceUp = 4
+        paceDown = 3,
+        paceUp = 4
     }
 
     public enum ForceInMove

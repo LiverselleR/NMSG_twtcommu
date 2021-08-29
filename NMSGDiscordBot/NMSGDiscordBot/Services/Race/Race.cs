@@ -9,28 +9,34 @@ namespace NMSGDiscordBot
     {
         public Derby derby;
         public List<Participant> entry;
+        public List<String> turnLog;
+        public Turn turn;
 
         public Race(Derby derby, List<Participant> entry)
         {
             this.derby = derby;
             this.entry = entry;
+            turnLog = new List<string>();
+
+            List<Racetrack> racetracks = JSONManager.GetRacetrackList();
+            Racetrack racetrack = racetracks.Find(rt => rt.id == derby.id);
+            Console.WriteLine(racetrack.partLength.Count);
+
+            turn = new Turn(entry, racetrack.partType);
         }
 
-        public List<String> RaceManager()
+        public void Proceed()
         {
-            int furlong = derby.courseLength;
-            List<CourseType> courseTypeList = derby.courseTypeList;
-            Turn turn = new Turn(entry, furlong, courseTypeList);
-
             while(turn.IsRaceOver())
             {
                 turn.Process();
             }
 
-            return turn.GetLog();
+            turnLog = turn.GetLog();
+            turnLog.Add(turn.GetResultRank());
+            return;
         }
-
-        
+               
     }
 
     public enum TurfCondition

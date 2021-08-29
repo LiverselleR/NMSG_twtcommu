@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -40,12 +41,12 @@ namespace NMSGDiscordBot
 
         public async Task MainAsync()
         {
+            JSONManager.Initialize();
             // Centralize the logic for commands into a separate method.
             await _commandHandler.InstallCommandsAsync(_services);
 
             // Login and connect.
-            await _client.LoginAsync(TokenType.Bot,
-                Environment.GetEnvironmentVariable("DiscordToken"));
+            await _client.LoginAsync(TokenType.Bot, GetDiscordToken());
             await _client.StartAsync();
 
             // Wait infinitely so your bot actually stays connected.
@@ -79,6 +80,20 @@ namespace NMSGDiscordBot
             return Task.CompletedTask;
         }
 
+        private string GetDiscordToken()
+        {
+            String path = AppDomain.CurrentDomain.BaseDirectory + @"/Data";
+            
+            DirectoryInfo dl = new DirectoryInfo(path);
+            if (dl.Exists == false) dl.Create();
+
+            path = path + @"/token.txt";
+            using (FileStream fs = File.OpenRead(path))
+            {
+                StreamReader sr = new StreamReader(fs);
+                return sr.ReadToEnd();
+            }
+        }
 
     }
 }
