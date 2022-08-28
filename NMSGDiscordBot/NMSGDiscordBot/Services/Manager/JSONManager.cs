@@ -14,7 +14,6 @@ namespace NMSGDiscordBot
         public static void Initialize()
         {
             String path = AppDomain.CurrentDomain.BaseDirectory + @"/Data";
-            JArray dataset = new JArray();
 
             DirectoryInfo dl = new DirectoryInfo(path);
             if (dl.Exists == false) dl.Create();
@@ -31,6 +30,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(uPath))
                 {
+                    JArray dataset = new JArray();
                     Umamusume u = new Umamusume();
                     dataset.Add(JObject.FromObject(u));
                     StreamWriter sw = new StreamWriter(fs);
@@ -42,6 +42,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(trainingPath))
                 {
+                    JArray dataset = new JArray();
                     Training training = new Training();
                     dataset.Add(JObject.FromObject(training));
                     StreamWriter sw = new StreamWriter(fs);
@@ -53,6 +54,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(trainerPath))
                 {
+                    JArray dataset = new JArray();
                     Trainer trainer = new Trainer();
                     dataset.Add(JObject.FromObject(trainer));
                     StreamWriter sw = new StreamWriter(fs);
@@ -64,6 +66,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(teamPath))
                 {
+                    JArray dataset = new JArray();
                     Team team = new Team();
                     dataset.Add(JObject.FromObject(team));
                     StreamWriter sw = new StreamWriter(fs);
@@ -75,6 +78,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(derbyPath))
                 {
+                    JArray dataset = new JArray();
                     Derby d = new Derby();
                     dataset.Add(JObject.FromObject(d));
                     StreamWriter sw = new StreamWriter(fs);
@@ -86,6 +90,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(entryPath))
                 {
+                    JArray dataset = new JArray();
                     Entry entry = new Entry();
                     dataset.Add(JObject.FromObject(entry));
                     StreamWriter sw = new StreamWriter(fs);
@@ -97,6 +102,7 @@ namespace NMSGDiscordBot
             {
                 using (FileStream fs = File.Create(racetrackPath))
                 {
+                    JArray dataset = new JArray();
                     Racetrack r = new Racetrack(0, new List<int>(), new List<CourseType>(), new List<double>(), 30, 110, FieldType.durt);
                     dataset.Add(JObject.FromObject(r));
                     StreamWriter sw = new StreamWriter(fs);

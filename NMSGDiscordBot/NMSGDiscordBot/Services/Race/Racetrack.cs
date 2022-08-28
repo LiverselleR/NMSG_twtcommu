@@ -16,7 +16,6 @@ namespace NMSGDiscordBot
         public FieldType fieldType;                     // 필드 타입 (m)
 
 
-        /*
         public Racetrack()
         {
             id = 0;
@@ -36,7 +35,6 @@ namespace NMSGDiscordBot
                 partHeight.Add(0);
             }
         }
-        */
 
         public Racetrack(int id, List<int> partLength, List<CourseType> partType, List<double> partHeight, int width, int radius, FieldType fieldType)
         {
