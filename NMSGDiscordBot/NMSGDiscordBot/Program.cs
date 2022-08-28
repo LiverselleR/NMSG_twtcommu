@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using Discord.Commands;
+using Discord.Net;
+using Newtonsoft.Json;
+using Discord.Interactions;
 
 namespace NMSGDiscordBot
 {
@@ -18,8 +21,10 @@ namespace NMSGDiscordBot
             => new Program().MainAsync().GetAwaiter().GetResult();
 
         private readonly CommandService _commands;
+        private readonly InteractionService _interactionCommands;
         private readonly IServiceProvider _services;
         private readonly CommandHandler _commandHandler;
+        private readonly SlashCommandHandler _slashCommandHandler;
 
         private Program()
         {
@@ -33,7 +38,13 @@ namespace NMSGDiscordBot
                 LogLevel = LogSeverity.Info,
                 CaseSensitiveCommands = false,
             });
+
+            _interactionCommands = new InteractionService(_client, new InteractionServiceConfig
+            {
+                LogLevel = LogSeverity.Info,
+            });
             _commandHandler = new CommandHandler(_client, _commands);
+            _slashCommandHandler = new SlashCommandHandler(_client, _interactionCommands);
 
             _client.Log += Log;
             _commands.Log += Log;
@@ -44,6 +55,9 @@ namespace NMSGDiscordBot
             JSONManager.Initialize();
             // Centralize the logic for commands into a separate method.
             await _commandHandler.InstallCommandsAsync(_services);
+            await _slashCommandHandler.InitializeAsync(_services);
+
+            _client.Ready += ReadyAsync;
 
             // Login and connect.
             await _client.LoginAsync(TokenType.Bot, GetDiscordToken());
@@ -94,6 +108,9 @@ namespace NMSGDiscordBot
                 return sr.ReadToEnd();
             }
         }
-
+        private async Task ReadyAsync()
+        {
+            await _interactionCommands.RegisterCommandsToGuildAsync(537274953800744961);
+        }
     }
 }
